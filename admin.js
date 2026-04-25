@@ -80,6 +80,8 @@ window.admin = {
                     <h3 class="mb-1">Manage Student Progress</h3>
                     <div id="manage-student-info" style="color: #cbd5e1; margin-bottom: 1.5rem; font-size: 0.95rem; line-height: 1.5;"></div>
                     
+                    <div id="manage-topics-section" style="margin-bottom: 2rem;"></div>
+
                     <div id="manage-finance-section" style="margin-bottom: 2rem;"></div>
 
                     <div class="form-group" style="margin-bottom: 2rem;">
@@ -423,6 +425,79 @@ window.admin = {
                 Approved Topic: <strong style="color:var(--primary-color);">${user.approvedTopic || 'None Selected Yet'}</strong>
             `;
             document.getElementById('manage-stage-select').value = user.stage;
+
+            const topicsSec = document.getElementById('manage-topics-section');
+            if (topicsSec) {
+                if (!user.approvedTopic) {
+                    const t1 = (user.assignedTopics && user.assignedTopics[0]) || '';
+                    const t2 = (user.assignedTopics && user.assignedTopics[1]) || '';
+                    
+                    topicsSec.innerHTML = `
+                        <h4 style="margin-bottom:1rem; color: #f8fafc;">Manage Topic Options</h4>
+                        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Rewrite the options below to give the student custom topics to choose from if they are unsatisfied.</p>
+                        <div class="form-group">
+                            <label>Option A</label>
+                            <input type="text" id="override-topic-1" value="${t1}" placeholder="First Topic Option..." style="width:100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; margin-bottom:0.5rem;">
+                            <label>Option B</label>
+                            <input type="text" id="override-topic-2" value="${t2}" placeholder="Second Topic Option..." style="width:100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px;">
+                        </div>
+                        <button id="save-assigned-topics-btn" class="btn mt-1" style="font-size: 0.85rem; padding: 0.5rem 1rem; width: auto; background: var(--secondary-color);">Update Topic Options</button>
+                        <button id="reroll-topics-btn" class="btn mt-1" style="font-size: 0.85rem; padding: 0.5rem 1rem; width: auto; background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); margin-left: 0.5rem;">Re-roll Randomly</button>
+                    `;
+
+                    document.getElementById('save-assigned-topics-btn').addEventListener('click', () => {
+                        const newT1 = document.getElementById('override-topic-1').value.trim();
+                        const newT2 = document.getElementById('override-topic-2').value.trim();
+                        let newAssign = [];
+                        if (newT1) newAssign.push(newT1);
+                        if (newT2) newAssign.push(newT2);
+                        window.db.updateUser(user.email, { assignedTopics: newAssign });
+                        alert("Topic options updated successfully. The student will see these options when they log in.");
+                        window.app.render();
+                        // Re-fetch DOM elements after render to avoid stale references if necessary, or just wait for another click
+                    });
+
+                    document.getElementById('reroll-topics-btn').addEventListener('click', () => {
+                        const depts = window.db.getDepartments();
+                        const myDept = depts.find(d => d.id === user.department);
+                        const availableTopics = myDept ? myDept.topics : [];
+                        if (availableTopics.length >= 2) {
+                            let shuffled = [...availableTopics].sort(() => 0.5 - Math.random());
+                            window.db.updateUser(user.email, { assignedTopics: shuffled.slice(0, 2) });
+                            window.app.render();
+                        } else {
+                            alert("Not enough topics in the department to re-roll. Add more topics in the settings tab.");
+                        }
+                    });
+
+                } else {
+                    topicsSec.innerHTML = `
+                        <h4 style="margin-bottom:1rem; color: #f8fafc;">Manage Topic Details</h4>
+                        <div class="form-group">
+                            <label>Edit Approved Topic</label>
+                            <input type="text" id="override-approved-topic" value="${user.approvedTopic}" style="width:100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px;">
+                        </div>
+                        <button id="save-approved-topic-btn" class="btn mt-1" style="font-size: 0.85rem; padding: 0.5rem 1rem; width: auto; background: var(--secondary-color);">Save Topic Edit</button>
+                        <button id="revoke-topic-btn" class="btn mt-1" style="font-size: 0.85rem; padding: 0.5rem 1rem; width: auto; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.3); margin-left: 0.5rem;">Revoke Approval & Force Re-select</button>
+                    `;
+
+                    document.getElementById('save-approved-topic-btn').addEventListener('click', () => {
+                        const newApproved = document.getElementById('override-approved-topic').value.trim();
+                        if (newApproved) {
+                            window.db.updateUser(user.email, { approvedTopic: newApproved });
+                            alert("Approved topic updated.");
+                            window.app.render();
+                        }
+                    });
+
+                    document.getElementById('revoke-topic-btn').addEventListener('click', () => {
+                        if (confirm("Are you sure you want to revoke their approved topic? This will force them to pick a new topic.")) {
+                            window.db.updateUser(user.email, { approvedTopic: null, stage: 'topics' });
+                            window.app.render();
+                        }
+                    });
+                }
+            }
 
             const financeSec = document.getElementById('manage-finance-section');
             financeSec.innerHTML = `
